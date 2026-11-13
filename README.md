@@ -2,4 +2,4 @@
 
 Личный сайт: маркетинг × AI — Threads, Instagram, Notion, Vibe Coding.
 
-Сайт — один файл `index.html`.
+Сайт — `public/index.html`. Деплой: Cloudflare (`wrangler.jsonc`).
