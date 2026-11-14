@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Ветки">
+<meta name="theme-color" content="#000000">
+<title>Ветки</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon-180.png">
+<link rel="icon" href="/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=Unbounded:wght@600&display=swap" rel="stylesheet">
+<style>
+/*CSS*/
+.right{justify-self:end;display:flex;align-items:center;gap:12px}
+.right .sync{justify-self:auto}
+.bellbtn{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;color:var(--muted);position:relative}
+.bellbtn.on{color:var(--gold)}
+.gate{position:fixed;inset:0;background:var(--bg);z-index:50;display:flex;align-items:center;justify-content:center;padding:24px}
+.gate[hidden]{display:none}
+.gate-box{width:100%;max-width:320px;display:flex;flex-direction:column;align-items:center;gap:16px;text-align:center}
+.gate-box img{width:72px;height:72px;border-radius:18px}
+.gate-box h1{font-family:var(--display);font-weight:600;font-size:20px;margin:6px 0 0;text-wrap:balance}
+.gate-box p{margin:0;color:var(--muted);font-size:14px;line-height:1.5}
+.gate-box input{width:100%;text-align:center;font-size:28px;letter-spacing:.5em;padding:14px 10px 14px 24px;background:var(--raise);border:1px solid var(--line);border-radius:18px;color:var(--text);font-variant-numeric:tabular-nums}
+.gate-box .pillbtn{width:100%;justify-content:center;padding:15px}
+.err{color:var(--del)!important;min-height:1.2em}
+.steps{text-align:left;margin:0;padding-left:20px;color:var(--text);font-size:14px;line-height:1.6;display:flex;flex-direction:column;gap:6px}
+.status{display:flex;flex-direction:column;gap:10px}
+.status .line{display:flex;justify-content:space-between;align-items:center;font-size:14px;padding:12px 14px;background:var(--raise);border:1px solid var(--line);border-radius:14px}
+.status .line b{font-weight:600}
+.status .line b.ok{color:var(--ok)}
+.status .line b.no{color:var(--muted)}
+.item.flash{animation:flash 1.6s ease}
+@keyframes flash{0%,40%{background:color-mix(in srgb,var(--gold) 14%,transparent)}100%{background:transparent}}
+.sheet h2{font-family:var(--display);font-size:16px;font-weight:600;margin:0}
+.wide{width:100%;justify-content:center}
+.other{font-size:12px;color:var(--muted);padding:10px 24px 0}
+</style>
+</head>
+<body>
+<div class="app">
+  <div>
+    <header class="top">
+      <div class="acc" role="group" aria-label="Аккаунт">
+        <button id="acc-ru" data-acc="ru" aria-pressed="true" title="Основной аккаунт">RU</button>
+        <button id="acc-kz" data-acc="kz" aria-pressed="false" title="Вайб-кодинг">KZ</button>
+      </div>
+      <div class="mark"><i></i>ветки</div>
+      <div class="right">
+        <div class="sync" id="sync" title="Загрузка" role="status" aria-label="Загрузка"></div>
+        <button class="bellbtn" id="bellBtn" aria-label="Уведомления"><svg width="20" height="20" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg></button>
+      </div>
+    </header>
+    <div class="progress" aria-hidden="true"><span id="prog" style="width:0"></span></div>
+  </div>
+
+  <main>
+    <section class="view" id="v-deck">
+      <div class="banner" id="banner" hidden></div>
+      <div class="stack" id="stack"><div class="loading">Загружаю ветки…</div></div>
+      <div class="actions" id="actions">
+        <button class="c lg save" id="btnSave" aria-label="Сохранить ветку (влево)"><svg width="28" height="28" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>
+        <button class="c sm" id="btnUndo" aria-label="Вернуть последнее действие" disabled><svg width="19" height="19" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></button>
+        <button class="c sm" id="btnEdit" aria-label="Изменить текст, время или добавить фото"><svg width="19" height="19" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="m13.5 6.5 4 4"/></svg></button>
+        <button class="c lg del" id="btnDel" aria-label="Удалить ветку (вправо)"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      </div>
+    </section>
+    <section class="view" id="v-plan" hidden><div class="scroll" id="planList"></div></section>
+    <section class="view" id="v-trash" hidden><div class="scroll" id="trashList"></div></section>
+  </main>
+
+  <nav class="nav" aria-label="Разделы">
+    <button id="nav-deck" data-view="deck" aria-current="page" aria-label="Колода"><svg width="24" height="24" viewBox="0 0 24 24"><rect x="6" y="3.5" width="12" height="17" rx="3"/><path d="M3 7v10M21 7v10"/></svg><span class="n" id="bDeck"></span></button>
+    <button id="nav-plan" data-view="plan" aria-label="План"><svg width="24" height="24" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg><span class="n" id="bPlan"></span></button>
+    <button id="nav-trash" data-view="trash" aria-label="Удалённые"><svg width="24" height="24" viewBox="0 0 24 24"><path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13"/></svg><span class="n" id="bTrash"></span></button>
+  </nav>
+</div>
+
+<div class="veil" id="veil" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-label="Редактирование ветки">
+    <div class="grab"></div>
+    <div class="sheet-head"><button id="edCancel">Отмена</button><span class="cnt" id="edCount"></span><button class="done" id="edOk">Готово</button></div>
+    <div class="sheet-body">
+      <label for="edText" class="sr">Текст ветки</label>
+      <textarea id="edText"></textarea>
+      <div class="fields">
+        <label for="edDate">Дата<input type="date" id="edDate"></label>
+        <label for="edTime">Время<input type="time" id="edTime" step="300"></label>
+      </div>
+      <div class="mediabox" id="edMedia"></div>
+    </div>
+  </div>
+</div>
+
+<div class="veil" id="notifVeil" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="notifTitle">
+    <div class="grab"></div>
+    <div class="sheet-head"><h2 id="notifTitle">Уведомления</h2><button id="notifClose">Закрыть</button></div>
+    <div class="sheet-body" id="notifBody"></div>
+  </div>
+</div>
+
+<div class="gate" id="gate" hidden>
+  <form class="gate-box" id="gateForm">
+    <img src="/icon-192.png" alt="">
+    <h1 id="gateTitle">Ветки</h1>
+    <p id="gateText"></p>
+    <label for="pin" class="sr">PIN</label>
+    <input id="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="current-password">
+    <button class="pillbtn gold" id="gateBtn" type="submit">Войти</button>
+    <p class="err" id="gateErr"></p>
+  </form>
+</div>
+
+<div class="toast" id="toast" role="status" hidden><span id="toastText"></span><button id="toastBtn" hidden>Вернуть</button></div>
+
+<script>
+(() => {
+  const TZ = 'Asia/Almaty';
+  const LIMIT = 500;
+  const TYPE_COLOR = {'Польза':'#7AA2FF','Кейс':'#E8C27A','Личное':'#D29BFF','Вопрос':'#5ED3C6','Продажа':'#FF8A5B'};
+  const $ = id => document.getElementById(id);
+  const state = { acc:'ru', view:'deck', decks:{}, undo:[], alerted:new Set(), expanded:new Set(), dragging:false, pin:null, pushDevices:0, ready:false };
+  const mediaCache = new Map(); // post id -> {blob, type, name, url}
+
+  const ICON = {
+    copy:'<svg width="18" height="18" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="3"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>',
+    send:'<svg width="18" height="18" viewBox="0 0 24 24"><path d="M7 17 17 7M9 7h8v8"/></svg>',
+    share:'<svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>',
+    check:'<svg width="18" height="18" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+    edit:'<svg width="17" height="17" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4z"/></svg>',
+    back:'<svg width="18" height="18" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>',
+    plus:'<svg width="20" height="20" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>'
+  };
+
+  /* ---------- helpers ---------- */
+  function h(tag, attrs, ...kids){
+    const el = document.createElement(tag);
+    if (attrs) for (const [k,v] of Object.entries(attrs)){
+      if (v == null || v === false) continue;
+      if (k === 'class') el.className = v;
+      else if (k === 'style') el.style.cssText = v;
+      else if (k === 'html') el.innerHTML = v;
+      else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+      else if (k === 'text') el.textContent = v;
+      else el.setAttribute(k, v === true ? '' : v);
+    }
+    for (const kid of kids.flat()){ if (kid == null || kid === false) continue; el.append(kid.nodeType ? kid : document.createTextNode(String(kid))); }
+    return el;
+  }
+  const clone = o => JSON.parse(JSON.stringify(o));
+  function addDays(iso, n){ const [y,m,d] = iso.split('-').map(Number); return new Date(Date.UTC(y, m-1, d+n)).toISOString().slice(0,10); }
+  const todayISO = () => new Intl.DateTimeFormat('en-CA',{timeZone:TZ}).format(Date.now());
+  const fmtDay = new Intl.DateTimeFormat('ru-RU',{timeZone:TZ, weekday:'short', day:'numeric', month:'long'});
+  function pDate(deck,p){ return p.date || addDays(deck.start, p.day-1); }
+  function pTs(deck,p){ return Date.parse(`${pDate(deck,p)}T${p.time}:00+05:00`); }
+  function dayName(iso){
+    const t = todayISO();
+    if (iso === t) return 'Сегодня';
+    if (iso === addDays(t,1)) return 'Завтра';
+    return fmtDay.format(Date.parse(iso+'T12:00:00+05:00'));
+  }
+  function rel(ts){
+    const m = Math.round((ts - Date.now())/60000);
+    const span = a => { const hh = Math.floor(a/60), mm = a%60, d = Math.floor(hh/24);
+      if (d >= 1) return `${d} д ${hh%24} ч`; return hh ? `${hh} ч ${mm} мин` : `${mm} мин`; };
+    if (m > 0) return 'через ' + span(m);
+    if (m > -1) return 'сейчас';
+    return 'просрочено на ' + span(-m);
+  }
+  const threadsUrl = t => 'https://www.threads.net/intent/post?text=' + encodeURIComponent(t);
+  const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  function b64uToBytes(s){ const p = s.replace(/-/g,'+').replace(/_/g,'/') + '==='.slice((s.length+3)%4); const bin = atob(p); return Uint8Array.from(bin, c => c.charCodeAt(0)); }
+
+  /* ---------- media on this phone (IndexedDB) ---------- */
+  let idbP = null;
+  function idb(){
+    if (!idbP) idbP = new Promise((res, rej) => {
+      try { const r = indexedDB.open('vetki', 1); r.onupgradeneeded = () => r.result.createObjectStore('media'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }
+      catch(e){ rej(e); }
+    });
+    return idbP;
+  }
+  async function idbDo(mode, fn){
+    const db = await idb();
+    return new Promise((res, rej) => { const tx = db.transaction('media', mode); const req = fn(tx.objectStore('media')); tx.oncomplete = () => res(req && req.result); tx.onerror = () => rej(tx.error); });
+  }
+  const mediaGet = k => idbDo('readonly', s => s.get(k)).catch(() => null);
+  const mediaPut = (k, v) => idbDo('readwrite', s => s.put(v, k));
+  const mediaDel = k => idbDo('readwrite', s => s.delete(k)).catch(() => {});
+  function cacheMedia(id, rec){
+    const old = mediaCache.get(id); if (old && old.url) URL.revokeObjectURL(old.url);
+    if (!rec) { mediaCache.delete(id); return; }
+    mediaCache.set(id, {...rec, url: URL.createObjectURL(rec.blob)});
+  }
+  async function loadMedia(){
+    for (const acc of ['ru','kz']){
+      const d = state.decks[acc]; if (!d) continue;
+      for (const p of d.posts){ if (p.media && p.media.local){ const rec = await mediaGet(acc + ':' + p.id); if (rec) cacheMedia(acc + ':' + p.id, rec); } }
+    }
+  }
+  function mediaFor(acc, p){ return p.media ? mediaCache.get(acc + ':' + p.id) || null : null; }
+  function mediaEl(m, extra){
+    if (!m) return null;
+    return (m.type||'').startsWith('video')
+      ? h('video',{src:m.url, muted:true, playsinline:true, loop:true, autoplay:true, ...extra})
+      : h('img',{src:m.url, alt:'Прикреплённое фото', ...extra});
+  }
+
+  /* ---------- server ---------- */
+  async function api(method, path, body){
+    const r = await fetch(path, { method, headers:{'content-type':'application/json', 'x-pin': state.pin || ''}, body: body === undefined ? undefined : JSON.stringify(body) });
+    let data = {}; try { data = await r.json(); } catch(_){}
+    if (r.status === 401 && path !== '/api/setup'){ try { localStorage.removeItem('vetki-pin'); } catch(_){} state.pin = null; showGate('login', 'Неверный PIN. Введите ещё раз.'); throw new Error('auth'); }
+    if (!r.ok) throw new Error(data.error || ('Ошибка ' + r.status));
+    return data;
+  }
+  const writing = {}, dirty = {}, timers = {};
+  function setSync(kind, text){ const s = $('sync'); s.className = 'sync ' + kind; s.title = text; s.setAttribute('aria-label', text); }
+  const pending = {};
+  function persist(acc){ pending[acc] = true; clearTimeout(timers[acc]); timers[acc] = setTimeout(() => flush(acc), 350); }
+  async function refresh(){
+    if (!state.ready || Object.values(pending).some(Boolean) || !$('veil').hidden || state.dragging) return;
+    try {
+      const st = await api('GET', '/api/state');
+      if (Object.values(pending).some(Boolean)) return;
+      for (const acc of ['ru','kz']) if (st.decks && st.decks[acc]) state.decks[acc] = st.decks[acc];
+      state.pushDevices = st.pushDevices || 0;
+      await loadMedia().catch(() => {});
+      render();
+    } catch(_){}
+  }
+  async function flush(acc){
+    if (writing[acc]){ dirty[acc] = true; return; }
+    writing[acc] = true; dirty[acc] = false;
+    setSync('busy','Сохраняю…');
+    try { await api('PUT', '/api/deck/' + acc, state.decks[acc]); setSync('cloud','Сохранено'); if (!dirty[acc]) pending[acc] = false; }
+    catch(e){ if (e.message !== 'auth'){ setSync('','Не сохранено'); toast('Не сохранилось. Проверьте интернет'); dirty[acc] = true; setTimeout(() => flush(acc), 5000); } }
+    writing[acc] = false;
+    if (dirty[acc] && !writing[acc]) { dirty[acc] = false; flush(acc); }
+  }
+
+  /* ---------- gate (PIN) ---------- */
+  let gateMode = 'login';
+  function showGate(mode, err){
+    gateMode = mode;
+    $('gate').hidden = false;
+    $('gateTitle').textContent = mode === 'setup' ? 'Придумайте PIN' : 'Введите PIN';
+    $('gateText').textContent = mode === 'setup' ? 'От 4 до 8 цифр. Он защищает ваши ветки: без него никто не откроет приложение.' : 'Тот же PIN, который вы придумали при первом входе.';
+    $('gateBtn').textContent = mode === 'setup' ? 'Сохранить PIN' : 'Войти';
+    $('gateErr').textContent = err || '';
+    $('pin').value = ''; setTimeout(() => $('pin').focus(), 60);
+  }
+  $('gateForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const pin = $('pin').value.trim();
+    if (!/^\d{4,8}$/.test(pin)){ $('gateErr').textContent = 'Нужно от 4 до 8 цифр'; return; }
+    $('gateBtn').disabled = true;
+    try {
+      if (gateMode === 'setup'){
+        const r = await fetch('/api/setup', {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({pin})});
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok && r.status !== 409) throw new Error(d.error || 'Не получилось');
+        if (r.status === 409){ showGate('login', 'PIN уже задан. Введите его.'); return; }
+      }
+      state.pin = pin;
+      const r = await fetch('/api/login', {method:'POST', headers:{'x-pin':pin}});
+      if (!r.ok){ const d = await r.json().catch(() => ({})); state.pin = null; $('gateErr').textContent = d.error || 'Неверный PIN'; return; }
+      try { localStorage.setItem('vetki-pin', pin); } catch(_){}
+      $('gate').hidden = true;
+      await start();
+    } catch(err){ $('gateErr').textContent = err.message || 'Нет связи с сервером'; }
+    finally { $('gateBtn').disabled = false; }
+  });
+
+  /* ---------- boot ---------- */
+  async function boot(){
+    if ('serviceWorker' in navigator){
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+      navigator.serviceWorker.addEventListener('message', e => { if (e.data && e.data.type === 'open') refresh().then(() => openFromUrl(e.data.url)); });
+    }
+    let hasPin = true;
+    try { hasPin = (await (await fetch('/api/status')).json()).hasPin; }
+    catch(e){ $('stack').replaceChildren(h('div',{class:'empty', style:'height:100%'}, h('h2',{text:'Нет связи с сервером'}), h('p',{text:'Проверьте интернет и откройте приложение снова.'}))); return; }
+    try { state.pin = localStorage.getItem('vetki-pin'); } catch(_){}
+    if (!hasPin) return showGate('setup');
+    if (!state.pin) return showGate('login');
+    await start();
+  }
+  async function start(){
+    let st;
+    try { st = await api('GET', '/api/state'); } catch(e){ if (e.message !== 'auth') toast('Нет связи с сервером'); return; }
+    state.pushDevices = st.pushDevices || 0;
+    let seed = null;
+    for (const acc of ['ru','kz']){
+      if (st.decks && st.decks[acc]) { state.decks[acc] = st.decks[acc]; continue; }
+      if (!seed) seed = await (await fetch('/seed.json')).json();
+      state.decks[acc] = { start: seed.start, posts: seed.posts.filter(p => p.acc === acc).map(p => ({
+        id: `${acc}-${p.day}-${p.time.replace(':','')}`, day:p.day, time:p.time, type:p.type, text:p.text, status:p.status || 'new', date:null, media:null })) };
+      await flush(acc);
+    }
+    await loadMedia().catch(() => {});
+    state.ready = true;
+    setSync('cloud','Сохранено');
+    render();
+    openFromUrl(location.href);
+    if (!state._timer){ state._timer = setInterval(checkDue, 30000); }
+    checkDue();
+  }
+
+  function openFromUrl(u){
+    let hash = ''; try { hash = new URL(u, location.href).hash; } catch(_){}
+    const m = hash.match(/^#(ru|kz):([\w-]+)$/); if (!m || !state.ready) return;
+    state.acc = m[1]; state.view = 'plan'; state.expanded.add(m[2]); render();
+    history.replaceState(null, '', '/');
+    requestAnimationFrame(() => { const el = document.querySelector(`[data-id="${m[2]}"]`); if (el){ el.scrollIntoView({block:'center'}); el.classList.add('flash'); } });
+  }
+  window.addEventListener('hashchange', () => refresh().then(() => openFromUrl(location.href)));
+
+  /* ---------- actions ---------- */
+  const deck = () => state.decks[state.acc];
+  function byTime(a,b){ return pTs(deck(),a) - pTs(deck(),b); }
+  function setStatus(p, status, label, acc){
+    acc = acc || state.acc;
+    const prev = p.status; p.status = status;
+    if (status === 'done') p.doneAt = Date.now();
+    state.undo.push({acc, id:p.id, prev});
+    persist(acc); render();
+    if (label) toast(label, true);
+  }
+  function undo(){
+    const u = state.undo.pop(); if (!u) return;
+    const p = state.decks[u.acc].posts.find(x => x.id === u.id); if (!p) return;
+    p.status = u.prev; state.acc = u.acc; persist(u.acc); render(); toast('Вернул');
+  }
+  async function copyText(t){
+    try { await navigator.clipboard.writeText(t); toast('Текст скопирован'); return true; }
+    catch(e){
+      const ta = h('textarea',{style:'position:fixed;top:-1000px;opacity:0'}); ta.value = t; document.body.append(ta); ta.select();
+      let ok = false; try { ok = document.execCommand('copy'); } catch(_){}
+      ta.remove(); toast(ok ? 'Текст скопирован' : 'Не скопировалось: выделите текст вручную'); return ok;
+    }
+  }
+  async function sharePost(acc, p){
+    const m = mediaFor(acc, p);
+    const data = { text: p.text };
+    if (m){
+      const ext = (m.type.split('/')[1] || 'jpg').replace('quicktime','mov').replace('jpeg','jpg');
+      const f = new File([m.blob], m.name || `vetka.${ext}`, {type: m.type});
+      if (navigator.canShare && navigator.canShare({files:[f]})) data.files = [f];
+    }
+    if (!navigator.share){ copyText(p.text); return; }
+    try { await navigator.share(data); }
+    catch(e){ if (e.name !== 'AbortError') toast('Не удалось поделиться'); }
+  }
+
+  let toastTimer;
+  function toast(text, withUndo){
+    $('toastText').textContent = text; $('toastBtn').hidden = !withUndo;
+    $('toast').classList.toggle('solo', !withUndo); $('toast').hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => $('toast').hidden = true, withUndo ? 4000 : 2000);
+  }
+  $('toastBtn').addEventListener('click', () => { $('toast').hidden = true; undo(); });
+
+  /* ---------- render ---------- */
+  function render(){
+    document.querySelectorAll('.acc button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.acc === state.acc)));
+    document.querySelectorAll('.nav button').forEach(b => b.dataset.view === state.view ? b.setAttribute('aria-current','page') : b.removeAttribute('aria-current'));
+    ['deck','plan','trash'].forEach(v => $('v-'+v).hidden = v !== state.view);
+    $('bellBtn').classList.toggle('on', state.pushDevices > 0 && typeof Notification !== 'undefined' && Notification.permission === 'granted');
+    const d = deck(); if (!d) return;
+    const fresh = d.posts.filter(p => p.status === 'new').sort(byTime);
+    const planned = d.posts.filter(p => p.status === 'saved' || p.status === 'done');
+    const trash = d.posts.filter(p => p.status === 'deleted');
+    $('bDeck').textContent = fresh.length || '';
+    $('bPlan').textContent = planned.filter(p => p.status === 'saved').length || '';
+    $('bTrash').textContent = trash.length || '';
+    $('prog').style.width = `${Math.round((1 - fresh.length / d.posts.length) * 100)}%`;
+    $('btnUndo').disabled = !state.undo.length;
+    if (state.view === 'deck') renderDeck(fresh, d);
+    if (state.view === 'plan') renderPlan(planned, d);
+    if (state.view === 'trash') renderTrash(trash, d);
+    renderBanner();
+  }
+
+  function cardEl(p, d, top){
+    const m = mediaFor(state.acc, p);
+    return h('article',{class:'card' + (top ? '' : ' behind'), 'aria-label': `${p.type}, ${dayName(pDate(d,p))}, ${p.time}`},
+      m ? h('div',{class:'media'}, mediaEl(m)) : null,
+      h('div',{class:'meta', style:`--tc:${TYPE_COLOR[p.type]||'var(--gold)'}`},
+        h('span',{class:'k'}, h('i'), `${p.type} · день ${p.day}`),
+        h('span',{class:'w'}, dayName(pDate(d,p)) + ' ', h('b',{text:p.time}))
+      ),
+      p.media && !m ? h('div',{class:'other', text:'Фото прикреплено на другом телефоне'}) : null,
+      h('div',{class:'card-text', text:p.text}),
+      h('div',{class:'card-foot' + (p.text.length > LIMIT ? ' over' : ''), text:`${p.text.length} / ${LIMIT}`}),
+      h('div',{class:'stamp save', text:'СОХРАНИТЬ'}),
+      h('div',{class:'stamp del', text:'УДАЛИТЬ'})
+    );
+  }
+
+  function renderDeck(fresh, d){
+    const stack = $('stack');
+    $('actions').style.visibility = fresh.length ? 'visible' : 'hidden';
+    if (!fresh.length){
+      stack.replaceChildren(h('div',{class:'empty', style:'height:100%'},
+        h('h2',{text:'Все ветки разобраны'}),
+        h('p',{text:'Сохранённые ветки ждут в плане. В нужное время придёт уведомление.'}),
+        h('button',{class:'pillbtn gold', onclick:() => go('plan'), text:'Открыть план'})
+      ));
+      return;
+    }
+    const shown = fresh.slice(0,3).reverse();
+    stack.replaceChildren(...shown.map((p,i) => {
+      const depth = shown.length - 1 - i;
+      const el = cardEl(p, d, depth === 0);
+      el.style.transform = `translateY(${depth*12}px) scale(${1 - depth*0.045})`;
+      el.style.opacity = depth === 0 ? 1 : depth === 1 ? .7 : .35;
+      if (depth === 0) bindDrag(el, p);
+      return el;
+    }));
+  }
+
+  function fly(el, dir, p){
+    el.style.transition = 'transform .34s cubic-bezier(.4,0,.6,1), opacity .34s';
+    el.style.transform = `translate(${dir === 'left' ? -140 : 140}vw, -30px) rotate(${dir === 'left' ? -22 : 22}deg)`;
+    el.style.opacity = 0;
+    setTimeout(() => act(dir, p), 230);
+  }
+  function act(dir, p){
+    const d = deck();
+    if (dir === 'left') setStatus(p, 'saved', `Сохранено · ${dayName(pDate(d,p)).toLowerCase()}, ${p.time}`);
+    else setStatus(p, 'deleted', 'Удалено');
+  }
+  function topPost(){ return deck().posts.filter(p => p.status === 'new').sort(byTime)[0]; }
+  function topCard(){ const cs = $('stack').querySelectorAll('.card'); return cs[cs.length-1]; }
+  $('btnSave').addEventListener('click', () => { const p = topPost(), el = topCard(); if (p && el) fly(el,'left',p); });
+  $('btnDel').addEventListener('click', () => { const p = topPost(), el = topCard(); if (p && el) fly(el,'right',p); });
+  $('btnEdit').addEventListener('click', () => { const p = topPost(); if (p) openEditor(p); });
+  $('btnUndo').addEventListener('click', undo);
+  document.addEventListener('keydown', e => {
+    if (!$('veil').hidden || !$('gate').hidden || state.view !== 'deck' || e.target.closest('input,textarea')) return;
+    if (e.key === 'ArrowLeft') $('btnSave').click();
+    if (e.key === 'ArrowRight') $('btnDel').click();
+  });
+
+  function bindDrag(el, p){
+    let sx = 0, sy = 0, dx = 0, active = false, moved = false;
+    const sSave = el.querySelector('.stamp.save'), sDel = el.querySelector('.stamp.del');
+    const reset = () => { el.style.transition = 'transform .28s cubic-bezier(.2,.9,.3,1.2)'; el.style.transform = ''; sSave.style.opacity = 0; sDel.style.opacity = 0; };
+    el.addEventListener('pointerdown', e => {
+      if (e.button > 0 || e.target.closest('button,a,video')) return;
+      active = true; moved = false; sx = e.clientX; sy = e.clientY; dx = 0; el.style.transition = 'none';
+    });
+    el.addEventListener('pointermove', e => {
+      if (!active) return;
+      dx = e.clientX - sx; const dy = e.clientY - sy;
+      if (!moved){
+        if (Math.abs(dx) < 8) return;
+        if (Math.abs(dy) > Math.abs(dx)) { active = false; return; }
+        moved = true; state.dragging = true; try { el.setPointerCapture(e.pointerId); } catch(_){}
+      }
+      el.style.transform = `translate(${dx}px, ${dy*0.12}px) rotate(${dx/18}deg)`;
+      const k = Math.min(1, Math.abs(dx)/100);
+      sSave.style.opacity = dx < 0 ? k : 0; sDel.style.opacity = dx > 0 ? k : 0;
+    });
+    const end = () => {
+      if (!active) return; active = false; state.dragging = false;
+      if (!moved) return;
+      if (dx < -100) fly(el,'left',p); else if (dx > 100) fly(el,'right',p); else reset();
+    };
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', () => { if (active && moved && Math.abs(dx) > 100) end(); else { active = false; state.dragging = false; reset(); } });
+  }
+
+  function ib(icon, label, onclick, extra){ return h('button',{class:'ib' + (extra ? ' ' + extra : ''), 'aria-label':label, title:label, onclick, html:ICON[icon]}); }
+  function il(icon, label, href){ return h('a',{class:'ib', 'aria-label':label, title:label, href, target:'_blank', rel:'noopener', html:ICON[icon]}); }
+
+  function renderPlan(planned, d){
+    const acc = state.acc;
+    const kids = [];
+    const next = planned.filter(p => p.status === 'saved').sort(byTime)[0];
+    if (next){
+      const ts = pTs(d,next);
+      kids.push(h('div',{class:'next'},
+        h('div',{class:'l', text: ts <= Date.now() ? 'Пора публиковать' : 'Следующая'}),
+        h('div',{class:'t', text:`${dayName(pDate(d,next))}, ${next.time}`}),
+        h('div',{class:'r', text:`${next.type} · ${rel(ts)}`}),
+        h('div',{class:'p', text:next.text}),
+        h('div',{class:'row'},
+          h('button',{class:'pillbtn', onclick:() => copyText(next.text)}, h('span',{html:ICON.copy}), 'Копировать'),
+          h('a',{class:'pillbtn line', href:threadsUrl(next.text), target:'_blank', rel:'noopener'}, 'В Threads ↗'),
+          ib('share','Поделиться с фото', () => sharePost(acc, next)),
+          ib('check','Опубликовал', () => setStatus(next,'done','Опубликовано'), 'ok'))
+      ));
+    }
+    if (!planned.length){
+      kids.push(h('div',{class:'empty'}, h('h2',{text:'План пуст'}), h('p',{text:'Свайпните ветку влево, и она встанет сюда на своё время.'}), h('button',{class:'pillbtn', onclick:() => go('deck'), text:'К колоде'})));
+    } else {
+      const groups = new Map();
+      planned.slice().sort(byTime).forEach(p => { const k = pDate(d,p); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(p); });
+      for (const [iso, ps] of groups) kids.push(h('div',{class:'day'}, h('h3',{text:dayName(iso)}), ps.map(p => planItem(p,d))));
+    }
+    kids.push(h('div',{class:'setting'}, h('label',{for:'startDate', text:'Первый день'}),
+      h('input',{type:'date', id:'startDate', value:d.start, onchange:e => { if (!e.target.value) return; d.start = e.target.value; persist(state.acc); render(); toast('Даты пересчитаны'); }})));
+    kids.push(h('p',{class:'note', text:'В момент публикации придёт уведомление. Нажмите на него, затем «Копировать» и «В Threads». Кнопка «Поделиться» отправляет фото и текст через меню iPhone.'}));
+    $('planList').replaceChildren(...kids);
+  }
+  function planItem(p, d){
+    const acc = state.acc;
+    const ts = pTs(d,p), due = p.status === 'saved' && ts <= Date.now(), open = state.expanded.has(p.id);
+    const m = mediaFor(acc, p);
+    const btns = [ib('copy','Копировать', () => copyText(p.text)), il('send','Открыть в Threads', threadsUrl(p.text)), ib('share','Поделиться с фото', () => sharePost(acc, p))];
+    if (p.status === 'saved'){
+      btns.push(ib('check','Опубликовал', () => setStatus(p,'done','Опубликовано'), 'ok'));
+      btns.push(ib('edit','Изменить', () => openEditor(p)));
+      btns.push(ib('back','Вернуть в колоду', () => setStatus(p,'new','Вернул в колоду')));
+    } else btns.push(ib('back','Не опубликовано', () => setStatus(p,'saved','Вернул в план')));
+    return h('div',{class:'item' + (due ? ' due' : '') + (p.status === 'done' ? ' done' : ''), 'data-id':p.id, style:`--tc:${TYPE_COLOR[p.type]||'var(--gold)'}`},
+      h('div',{class:'tm'}, p.time, h('small')),
+      h('div',{class:'bd'},
+        h('div',{class:'st', text: p.status === 'done' ? `${p.type} · опубликовано` : `${p.type} · ${rel(ts)}`}),
+        m ? h('div',{class:'thumb'}, mediaEl(m,{autoplay:false})) : null,
+        h('div',{class:'tx' + (open ? ' open' : ''), text:p.text, title: open ? 'Свернуть' : 'Показать полностью', onclick:() => { open ? state.expanded.delete(p.id) : state.expanded.add(p.id); render(); }}),
+        h('div',{class:'row'}, btns))
+    );
+  }
+
+  function renderTrash(trash, d){
+    const list = $('trashList');
+    if (!trash.length){ list.replaceChildren(h('div',{class:'empty'}, h('h2',{text:'Пусто'}), h('p',{text:'Ветки, которые вы свайпнете вправо, появятся здесь.'}))); return; }
+    list.replaceChildren(h('div',{class:'day'}, h('h3',{text:'Удалённые'}), trash.sort(byTime).map(p => h('div',{class:'item', style:`--tc:${TYPE_COLOR[p.type]||'var(--gold)'}`},
+      h('div',{class:'tm'}, p.time, h('small')),
+      h('div',{class:'bd'},
+        h('div',{class:'st', text:`${p.type} · день ${p.day}`}),
+        h('div',{class:'tx', text:p.text}),
+        h('div',{class:'row'}, h('button',{class:'pillbtn line', onclick:() => setStatus(p,'new','Вернул в колоду')}, 'Вернуть')))
+    ))));
+  }
+
+  /* ---------- due banner (when the app is open) ---------- */
+  function dueList(){
+    const out = [];
+    for (const acc of ['ru','kz']){
+      const d = state.decks[acc]; if (!d) continue;
+      d.posts.forEach(p => { if (p.status === 'saved'){ const ts = pTs(d,p); if (ts <= Date.now() && ts > Date.now() - 6*3600e3) out.push({acc, p, ts}); } });
+    }
+    return out.sort((a,b) => a.ts - b.ts);
+  }
+  function renderBanner(){
+    const b = $('banner'); const due = dueList();
+    if (!due.length || state.view !== 'deck'){ b.hidden = true; return; }
+    const {acc, p} = due[0];
+    b.hidden = false;
+    b.replaceChildren(
+      h('div',{class:'bt'}, h('b',{text:'Пора публиковать'}), `${acc.toUpperCase()} · ${p.time} · ${p.type}` + (due.length > 1 ? ` · ещё ${due.length-1}` : '')),
+      ib('copy','Копировать', () => copyText(p.text)),
+      il('send','Открыть в Threads', threadsUrl(p.text)),
+      ib('check','Опубликовал', () => setStatus(p,'done','Опубликовано', acc), 'ok')
+    );
+  }
+  function checkDue(){
+    if (!state.ready) return;
+    const fresh = dueList().filter(x => !state.alerted.has(x.p.id));
+    if (fresh.length){
+      fresh.forEach(x => state.alerted.add(x.p.id));
+      try { navigator.vibrate && navigator.vibrate([120,80,120]); } catch(_){}
+      toast(`Пора публиковать · ${fresh[0].p.time}`);
+    }
+    if (state.dragging) return;
+    if (state.view === 'plan') renderPlan(deck().posts.filter(p => p.status === 'saved' || p.status === 'done'), deck());
+    renderBanner();
+  }
+
+  /* ---------- notifications sheet ---------- */
+  function openNotif(){ drawNotif(); $('notifVeil').hidden = false; }
+  $('bellBtn').addEventListener('click', openNotif);
+  $('notifClose').addEventListener('click', () => $('notifVeil').hidden = true);
+  $('notifVeil').addEventListener('click', e => { if (e.target === $('notifVeil')) $('notifVeil').hidden = true; });
+  function drawNotif(){
+    const body = $('notifBody');
+    const supported = 'serviceWorker' in navigator && 'PushManager' in window && typeof Notification !== 'undefined';
+    if (isIOS() && !isStandalone()){
+      body.replaceChildren(
+        h('p',{class:'note', style:'font-size:14px;color:var(--text)', text:'На iPhone уведомления работают, только если открыть «Ветки» с экрана «Домой».'}),
+        h('ol',{class:'steps'},
+          h('li',{text:'Откройте этот сайт в Safari.'}),
+          h('li',{text:'Нажмите «Поделиться» (квадрат со стрелкой вверх).'}),
+          h('li',{text:'Выберите «На экран „Домой“» и нажмите «Добавить».'}),
+          h('li',{text:'Откройте «Ветки» с новой иконки и снова нажмите колокольчик.'})
+        ));
+      return;
+    }
+    if (!supported){
+      body.replaceChildren(h('p',{class:'note', style:'font-size:14px', text:'Этот браузер не поддерживает уведомления. На iPhone нужна iOS 16.4 или новее и приложение на экране «Домой».'}));
+      return;
+    }
+    const perm = Notification.permission;
+    const on = perm === 'granted' && state.pushDevices > 0;
+    body.replaceChildren(...[
+      h('div',{class:'status'},
+        h('div',{class:'line'}, 'Разрешение', h('b',{class: perm === 'granted' ? 'ok' : 'no', text: perm === 'granted' ? 'Есть' : perm === 'denied' ? 'Запрещено' : 'Не выдано'})),
+        h('div',{class:'line'}, 'Устройств подключено', h('b',{class: state.pushDevices ? 'ok' : 'no', text:String(state.pushDevices)}))
+      ),
+      perm === 'denied'
+        ? h('p',{class:'note', style:'font-size:14px', text:'Уведомления запрещены. Включите их: Настройки iPhone → Уведомления → Ветки.'})
+        : h('button',{class:'pillbtn gold wide', id:'pushOn', onclick:enablePush, text: on ? 'Подключить заново' : 'Включить уведомления'}),
+      on ? h('button',{class:'pillbtn line wide', onclick:testPush, text:'Прислать проверочное'}) : null,
+      h('p',{class:'note', text:'Уведомление приходит в момент публикации каждой сохранённой ветки, даже когда приложение закрыто.'})
+    ].filter(Boolean));
+  }
+  async function enablePush(){
+    try {
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted'){ toast('Без разрешения уведомления не придут'); drawNotif(); return; }
+      const reg = await navigator.serviceWorker.ready;
+      const { publicKey } = await api('GET', '/api/vapid');
+      let sub = await reg.pushManager.getSubscription();
+      if (sub){
+        const cur = sub.options && sub.options.applicationServerKey ? new Uint8Array(sub.options.applicationServerKey) : null;
+        const want = b64uToBytes(publicKey);
+        if (cur && (cur.length !== want.length || cur.some((v,i) => v !== want[i]))){ await sub.unsubscribe(); sub = null; }
+      }
+      if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey: b64uToBytes(publicKey) });
+      const r = await api('POST', '/api/subscribe', sub.toJSON());
+      state.pushDevices = r.devices;
+      toast('Уведомления включены'); render(); drawNotif();
+    } catch(e){ if (e.message !== 'auth') toast('Не получилось: ' + (e.message || 'ошибка')); }
+  }
+  async function testPush(){
+    try { const r = await api('POST', '/api/test'); toast(r.sent ? 'Отправил. Сейчас придёт' : 'Не дошло. Нажмите «Подключить заново»'); }
+    catch(e){ if (e.message !== 'auth') toast('Не получилось отправить'); }
+  }
+
+  /* ---------- editor ---------- */
+  let editing = null, draft = null; // draft: {keep:true} | {file} | null
+  function openEditor(p){
+    editing = p;
+    const m = mediaFor(state.acc, p);
+    draft = m ? {keep:true, preview:m} : null;
+    const d = deck();
+    $('edText').value = p.text; $('edDate').value = pDate(d,p); $('edTime').value = p.time;
+    updCount(); drawMedia();
+    $('veil').hidden = false;
+  }
+  function closeEditor(){ if (draft && draft.preview && draft.file) URL.revokeObjectURL(draft.preview.url); $('veil').hidden = true; editing = null; draft = null; }
+  function updCount(){ const n = $('edText').value.length; const c = $('edCount'); c.textContent = `${n} / ${LIMIT}`; c.className = 'cnt' + (n > LIMIT ? ' over' : ''); }
+  $('edText').addEventListener('input', updCount);
+  function drawMedia(){
+    const box = $('edMedia');
+    const input = h('input',{type:'file', accept:'image/*,video/*', id:'edFile', 'aria-label':'Выбрать фото или видео из галереи', onchange:onFile});
+    if (draft && draft.preview){
+      box.replaceChildren(
+        h('div',{class:'prev'}, mediaEl(draft.preview,{controls:(draft.preview.type||'').startsWith('video') ? true : null})),
+        h('div',{class:'row'},
+          h('span',{class:'pillbtn line filebtn'}, 'Заменить', input),
+          h('button',{class:'pillbtn line', onclick:() => { draft = {remove:true}; drawMedia(); }}, 'Убрать')),
+        h('p',{class:'note', text:'Фото хранится на этом телефоне.'})
+      );
+    } else {
+      box.replaceChildren(h('label',{class:'add filebtn'}, h('span',{html:ICON.plus}), 'Фото или видео из галереи', input));
+    }
+  }
+  function onFile(e){
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    if (f.size > 200*1024*1024){ toast('Файл слишком большой'); return; }
+    draft = {file:f, preview:{type:f.type, url:URL.createObjectURL(f)}};
+    drawMedia();
+  }
+  $('edCancel').addEventListener('click', closeEditor);
+  $('veil').addEventListener('click', e => { if (e.target === $('veil')) closeEditor(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape'){ if (!$('veil').hidden) closeEditor(); $('notifVeil').hidden = true; } });
+  $('edOk').addEventListener('click', async () => {
+    if (!editing) return;
+    const p = editing, d = deck(), acc = state.acc, key = acc + ':' + p.id;
+    const text = $('edText').value.trim();
+    if (!text){ toast('Текст не может быть пустым'); return; }
+    p.text = text;
+    const dt = $('edDate').value, tm = $('edTime').value;
+    if (tm) p.time = tm;
+    if (dt) p.date = dt === addDays(d.start, p.day-1) ? null : dt;
+    try {
+      if (draft && draft.file){
+        const rec = {blob:draft.file, type:draft.file.type, name:draft.file.name};
+        await mediaPut(key, rec); cacheMedia(key, rec); p.media = {local:true, type:rec.type};
+      } else if (draft && draft.remove){ await mediaDel(key); cacheMedia(key, null); p.media = null; }
+    } catch(e){ toast('Фото не сохранилось на телефоне'); }
+    $('veil').hidden = true; editing = null; draft = null;
+    persist(acc); render(); toast('Сохранено');
+  });
+
+  function go(v){ state.view = v; render(); }
+  document.querySelectorAll('.nav button').forEach(b => b.addEventListener('click', () => go(b.dataset.view)));
+  document.querySelectorAll('.acc button').forEach(b => b.addEventListener('click', () => { state.acc = b.dataset.acc; state.expanded.clear(); render(); }));
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && state.ready) refresh().then(checkDue); });
+
+  boot();
+})();
+</script>
+</body>
+</html>
